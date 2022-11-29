@@ -8,10 +8,12 @@ import com.aws.ionutzbaur.rpicron.service.NotificationService;
 import com.aws.ionutzbaur.rpicron.service.impl.MailNotificationServiceImpl;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 
-import java.io.IOException;
 import java.net.Socket;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * This is the entry point for the Lambda function
@@ -26,12 +28,37 @@ public class Handler {
     private static final String REACHABLE_MESSAGE = DEVICE_NAME + " is now reachable!";
     private static final String NOT_REACHABLE_MESSAGE = DEVICE_NAME + " not reachable! Most probably a power outage.";
     private static final String NOTIFY_TRY_MESSAGE = "Will try to notify user.";
-    private static final String ROMANIA_ZONE_ID = "Europe/Bucharest";
+    private static final String BUCHAREST_ZONE_ID = "Europe/Bucharest";
+
+    private static final int BEGIN_IGNORED_HOUR = 3;
+    private static final int BEGIN_IGNORED_MINUTE = 0;
+    private static final int END_IGNORED_HOUR = 3;
+    private static final int END_IGNORED_MINUTE = 4;
+
+    private final ScanNotification scanNotification;
+    private final NotificationService notificationService;
+
+    public Handler() {
+        this(new ScanNotification(), new MailNotificationServiceImpl());
+    }
+
+    Handler(ScanNotification scanNotification, NotificationService notificationService) {
+        this.scanNotification = scanNotification;
+        this.notificationService = notificationService;
+    }
 
     public void handleRequest(Context context) {
         LambdaLogger logger = context.getLogger();
 
-        ScanNotification scanNotification = new ScanNotification();
+        if (isIgnoredInterval()) {
+            // in this period the router has nightly restarts.
+            logger.log("Interval ignored. Will do nothing.");
+        } else {
+            ping(logger);
+        }
+    }
+
+    private void ping(LambdaLogger logger) {
         Notification notification = scanNotification.getNotification(logger);
 
         String messageToSend = "Status unknown!";   //should not happen
@@ -45,19 +72,19 @@ public class Handler {
                 messageToSend = REACHABLE_MESSAGE;
 
                 notification.setAlive(true);
-                notification.setLastSentOn(LocalDateTime.now().atZone(ZoneId.of(ROMANIA_ZONE_ID)).toString());
+                notification.setLastSentOn(ZonedDateTime.now().withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)).toString());
                 notification.setNextNotificationNeeded(true);
 
                 isUpdateNeeded = true;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             if (Boolean.TRUE.equals(notification.getNextNotificationNeeded())) {
-                logger.log("Cannot connect to host due to " + e.getMessage());
+                logger.log("Cannot connect to host due to " + Arrays.toString(e.getStackTrace()));
                 logger.log(DEVICE_NAME + " down. " + NOTIFY_TRY_MESSAGE);
                 messageToSend = NOT_REACHABLE_MESSAGE;
 
                 notification.setAlive(false);
-                notification.setLastSentOn(LocalDateTime.now().atZone(ZoneId.of(ROMANIA_ZONE_ID)).toString());
+                notification.setLastSentOn(ZonedDateTime.now().withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)).toString());
                 notification.setNextNotificationNeeded(false);
 
                 isUpdateNeeded = true;
@@ -69,11 +96,23 @@ public class Handler {
                 DynamoDbTable<Notification> notificationTable = scanNotification.getTable();
                 notificationTable.updateItem(notification);
 
-                final NotificationService notificationService = new MailNotificationServiceImpl();
-                boolean isNotificationSent = notificationService.sendNotification(messageToSend, context);
+                boolean isNotificationSent = notificationService.sendNotification(messageToSend, logger);
                 logger.log(isNotificationSent ? "Successfully sent notification!" : "Notification not sent due to error!");
             }
         }
+    }
+
+    private boolean isIgnoredInterval() {
+        List<Predicate<ZonedDateTime>> predicateList = List.of( // add here other conditions if needed
+                zonedDateTime -> zonedDateTime.getHour() >= BEGIN_IGNORED_HOUR,
+                zonedDateTime -> zonedDateTime.getHour() <= END_IGNORED_HOUR,
+                zonedDateTime -> zonedDateTime.getMinute() >= BEGIN_IGNORED_MINUTE,
+                zonedDateTime -> zonedDateTime.getMinute() <= END_IGNORED_MINUTE);
+
+        return predicateList.stream()
+                .reduce(predicate -> true, Predicate::and)
+                .test(ZonedDateTime.now()
+                        .withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)));
     }
 
 }

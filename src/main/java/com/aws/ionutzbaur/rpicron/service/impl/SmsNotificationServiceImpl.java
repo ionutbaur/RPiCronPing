@@ -1,6 +1,5 @@
 package com.aws.ionutzbaur.rpicron.service.impl;
 
-import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.aws.ionutzbaur.rpicron.service.NotificationService;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
@@ -15,9 +14,10 @@ public class SmsNotificationServiceImpl implements NotificationService {
     private static final String PHONE = "+40747781383";
 
     @Override
-    public boolean sendNotification(String message, Context context) {
+    public boolean sendNotification(String message, LambdaLogger logger) {
         SnsClient snsClient = SnsClient.builder()
                 .region(Region.EU_CENTRAL_1)
+                // TODO: check credentials
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                 .build();
 
@@ -30,7 +30,6 @@ public class SmsNotificationServiceImpl implements NotificationService {
             snsClient.publish(request);
             return true;
         } catch (SnsException e) {
-            LambdaLogger logger = context.getLogger();
             logger.log("Cannot send sms due to " + e.awsErrorDetails().errorMessage());
             return false;
         }

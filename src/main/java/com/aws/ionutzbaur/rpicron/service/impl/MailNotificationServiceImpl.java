@@ -1,6 +1,5 @@
 package com.aws.ionutzbaur.rpicron.service.impl;
 
-import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.aws.ionutzbaur.rpicron.model.Email;
 import com.aws.ionutzbaur.rpicron.service.NotificationService;
@@ -31,8 +30,7 @@ public class MailNotificationServiceImpl implements NotificationService {
     private static final String INFO_MESSAGE = "Sent from AWS Lambda.";
 
     @Override
-    public boolean sendNotification(String message, Context context) {
-        LambdaLogger lambdaLogger = context.getLogger();
+    public boolean sendNotification(String message, LambdaLogger logger) {
         try (SesClient client = SesClient.builder()
                 .region(Region.EU_CENTRAL_1)
                 .credentialsProvider(ProfileCredentialsProvider.create())
@@ -44,10 +42,10 @@ public class MailNotificationServiceImpl implements NotificationService {
             String bodyHTML = "<html>" + "<head></head>" + "<body>" + "<h1>" + message + "</h1>"
                     + "<p>" + INFO_MESSAGE + "</p>" + "</body>" + "</html>";
 
-            sendMail(client, new Email(FROM, TO, SUBJECT, bodyText, bodyHTML), lambdaLogger);
+            sendMail(client, new Email(FROM, TO, SUBJECT, bodyText, bodyHTML), logger);
             return true;
         } catch (IOException | MessagingException e) {
-            lambdaLogger.log(e.getMessage());
+            logger.log(e.getMessage());
             return false;
         }
     }
