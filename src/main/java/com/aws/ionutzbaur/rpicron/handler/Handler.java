@@ -63,8 +63,8 @@ public class Handler {
 
         String messageToSend = "Status unknown!";   //should not happen
         boolean isUpdateNeeded = false;
-        boolean isAlive = Boolean.TRUE.equals(notification.getAlive());
         try (Socket ignored = new Socket(HOST, SSH_PORT)) {
+            boolean isAlive = Boolean.TRUE.equals(notification.getAlive());
             if (isAlive) {
                 logger.log(DEVICE_NAME + " is alive. No action needed.");
             } else {
@@ -72,7 +72,6 @@ public class Handler {
                 messageToSend = REACHABLE_MESSAGE;
 
                 notification.setAlive(true);
-                notification.setLastSentOn(ZonedDateTime.now().withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)).toString());
                 notification.setNextNotificationNeeded(true);
 
                 isUpdateNeeded = true;
@@ -84,7 +83,6 @@ public class Handler {
                 messageToSend = NOT_REACHABLE_MESSAGE;
 
                 notification.setAlive(false);
-                notification.setLastSentOn(ZonedDateTime.now().withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)).toString());
                 notification.setNextNotificationNeeded(false);
 
                 isUpdateNeeded = true;
@@ -93,11 +91,12 @@ public class Handler {
             }
         } finally {
             if (isUpdateNeeded) {
-                DynamoDbTable<Notification> notificationTable = scanNotification.getTable();
-                notificationTable.updateItem(notification);
-
                 boolean isNotificationSent = notificationService.sendNotification(messageToSend, logger);
                 logger.log(isNotificationSent ? "Successfully sent notification!" : "Notification not sent due to error!");
+                notification.setLastSentOn(ZonedDateTime.now().withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)).toString());
+
+                DynamoDbTable<Notification> notificationTable = scanNotification.getTable();
+                notificationTable.updateItem(notification);
             }
         }
     }
