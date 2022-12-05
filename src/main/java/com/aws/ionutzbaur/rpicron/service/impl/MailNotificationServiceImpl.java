@@ -36,8 +36,8 @@ public class MailNotificationServiceImpl implements NotificationService {
 
     @Override
     public boolean sendNotification(String message, LambdaLogger logger) {
-        final String sender = System.getenv(MAIL_FROM_VAR);
-        final String recipient = System.getenv(MAIL_TO_VAR);
+        final String sender = Utils.getEnv(MAIL_FROM_VAR);
+        final String recipient = Utils.getEnv(MAIL_TO_VAR);
         sanitizeMail(sender, recipient);
 
         try (SesClient client = SesClient.builder()
@@ -45,7 +45,7 @@ public class MailNotificationServiceImpl implements NotificationService {
                 .credentialsProvider(ProfileCredentialsProvider.create())
                 .build()) {
 
-            final String subject = System.getenv().getOrDefault(MAIL_SUBJECT_VAR, "Raspberry Pi status");
+            final String subject = Utils.getEnv(MAIL_SUBJECT_VAR, "Raspberry Pi status");
             // The email body for non-HTML email clients.
             final String bodyText = message + "\r\n" + INFO_MESSAGE;
             // The HTML body of the email.

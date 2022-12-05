@@ -12,7 +12,7 @@ public class Sanitizer {
     }
 
     public static void sanitizeRoute() {
-        if (System.getenv(HOST_VAR) == null || System.getenv(PORT_VAR) == null) {
+        if (Utils.getEnv(HOST_VAR) == null || Utils.getEnv(PORT_VAR) == null) {
             throw new RPiCronPingException("Host and/or port not provided.");
         }
     }

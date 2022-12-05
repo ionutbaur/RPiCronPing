@@ -17,7 +17,7 @@ public class SmsNotificationServiceImpl implements NotificationService {
 
     @Override
     public boolean sendNotification(String message, LambdaLogger logger) {
-        final String phone = System.getenv(PHONE_VAR);
+        final String phone = Utils.getEnv(PHONE_VAR);
         sanitizePhone(phone);
 
         SnsClient snsClient = SnsClient.builder()

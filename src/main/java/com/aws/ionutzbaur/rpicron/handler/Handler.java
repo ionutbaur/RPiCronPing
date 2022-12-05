@@ -3,9 +3,10 @@ package com.aws.ionutzbaur.rpicron.handler;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.aws.ionutzbaur.rpicron.datasource.ScanNotification;
+import com.aws.ionutzbaur.rpicron.factory.NotificationServiceFactory;
 import com.aws.ionutzbaur.rpicron.model.Notification;
+import com.aws.ionutzbaur.rpicron.model.enums.NotificationType;
 import com.aws.ionutzbaur.rpicron.service.NotificationService;
-import com.aws.ionutzbaur.rpicron.service.impl.MailNotificationServiceImpl;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 
 import java.net.Socket;
@@ -18,6 +19,7 @@ import java.util.function.Predicate;
 import static com.aws.ionutzbaur.rpicron.util.CommonConstants.*;
 import static com.aws.ionutzbaur.rpicron.util.Sanitizer.*;
 import static com.aws.ionutzbaur.rpicron.util.Utils.convertStringToInt;
+import static com.aws.ionutzbaur.rpicron.util.Utils.getEnv;
 
 /**
  * This is the entry point for the Lambda function
@@ -25,21 +27,17 @@ import static com.aws.ionutzbaur.rpicron.util.Utils.convertStringToInt;
 
 public class Handler {
 
-    private static final String DEVICE_NAME = System.getenv().getOrDefault("DEVICE_NAME", "Raspberry Pi");
+    private static final String NOTIFICATION_TYPE = getEnv("NOTIFICATION_TYPE", NotificationType.MAIL.name());
+    private static final String DEVICE_NAME = getEnv("DEVICE_NAME", "Raspberry Pi");
     private static final String REACHABLE_MESSAGE = DEVICE_NAME + " is now reachable!";
     private static final String NOT_REACHABLE_MESSAGE = DEVICE_NAME + " not reachable! Most probably a power outage.";
     private static final String NOTIFY_TRY_MESSAGE = "Will try to notify user.";
-
-    private static final String BEGIN_IGNORED_HOUR_VAR = "BEGIN_IGNORED_HOUR";
-    private static final String BEGIN_IGNORED_MINUTE_VAR = "BEGIN_IGNORED_MINUTE";
-    private static final String END_IGNORED_HOUR_VAR = "END_IGNORED_HOUR";
-    private static final String END_IGNORED_MINUTE_VAR = "END_IGNORED_MINUTE";
 
     private final ScanNotification scanNotification;
     private final NotificationService notificationService;
 
     public Handler() {
-        this(new ScanNotification(), new MailNotificationServiceImpl());
+        this(new ScanNotification(), new NotificationServiceFactory().getNotificationService(NOTIFICATION_TYPE));
     }
 
     Handler(ScanNotification scanNotification, NotificationService notificationService) {
@@ -61,7 +59,7 @@ public class Handler {
     private void ping(LambdaLogger logger) {
         sanitizeRoute();
 
-        final String host = System.getenv(HOST_VAR);
+        final String host = getEnv(HOST_VAR);
         final int port = getPort();
         Notification notification = scanNotification.getNotification(logger);
         String messageToSend = "Status unknown!";   //should not happen
@@ -119,35 +117,35 @@ public class Handler {
     }
 
     private static int getBeginIgnoredHour() {
-        final String beginIgnoredHourAsString = System.getenv(BEGIN_IGNORED_HOUR_VAR);
+        final String beginIgnoredHourAsString = getEnv(BEGIN_IGNORED_HOUR_VAR);
         final int beginIgnoredHour = convertStringToInt(beginIgnoredHourAsString, BEGIN_IGNORED_HOUR_VAR);
 
         return getValidHour(beginIgnoredHour);
     }
 
     private static int getEndIgnoredHour() {
-        final String endIgnoredHourAsString = System.getenv(END_IGNORED_HOUR_VAR);
+        final String endIgnoredHourAsString = getEnv(END_IGNORED_HOUR_VAR);
         final int endIgnoredHour = convertStringToInt(endIgnoredHourAsString, END_IGNORED_HOUR_VAR);
 
         return getValidHour(endIgnoredHour);
     }
 
     private static int getBeginIgnoredMinute() {
-        final String beginIgnoredMinuteAsString = System.getenv(BEGIN_IGNORED_MINUTE_VAR);
+        final String beginIgnoredMinuteAsString = getEnv(BEGIN_IGNORED_MINUTE_VAR);
         final int beginIgnoredMinute = convertStringToInt(beginIgnoredMinuteAsString, BEGIN_IGNORED_MINUTE_VAR);
 
         return getValidMinute(beginIgnoredMinute);
     }
 
     private static int getEndIgnoredMinute() {
-        final String endIgnoredMinuteAsString = System.getenv(END_IGNORED_MINUTE_VAR);
+        final String endIgnoredMinuteAsString = getEnv(END_IGNORED_MINUTE_VAR);
         final int endIgnoredMinute = convertStringToInt(endIgnoredMinuteAsString, END_IGNORED_MINUTE_VAR);
 
         return getValidMinute(endIgnoredMinute);
     }
 
     private static int getPort() {
-        final String portAsString = System.getenv(PORT_VAR);
+        final String portAsString = getEnv(PORT_VAR);
         return convertStringToInt(portAsString, PORT_VAR);
     }
 
