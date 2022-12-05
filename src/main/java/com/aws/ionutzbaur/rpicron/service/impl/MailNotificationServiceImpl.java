@@ -3,10 +3,10 @@ package com.aws.ionutzbaur.rpicron.service.impl;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.aws.ionutzbaur.rpicron.model.Email;
 import com.aws.ionutzbaur.rpicron.service.NotificationService;
+import com.aws.ionutzbaur.rpicron.util.Utils;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.SdkBytes;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ses.SesClient;
 import software.amazon.awssdk.services.ses.model.SendRawEmailRequest;
 
@@ -20,29 +20,39 @@ import javax.mail.internet.MimeMultipart;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+
+import static com.aws.ionutzbaur.rpicron.util.Sanitizer.sanitizeMail;
+import static software.amazon.awssdk.core.internal.util.Mimetype.MIMETYPE_HTML;
+import static software.amazon.awssdk.core.internal.util.Mimetype.MIMETYPE_TEXT_PLAIN;
 
 public class MailNotificationServiceImpl implements NotificationService {
 
-    private static final String FROM = "ionut.baur@gmail.com";
-    private static final String TO = "ionutzgabri91@gmail.com";
-    private static final String SUBJECT = "Raspberry Pi status";
+    private static final String MAIL_FROM_VAR = "MAIL_FROM";
+    private static final String MAIL_TO_VAR = "MAIL_TO";
+    private static final String MAIL_SUBJECT_VAR = "MAIL_SUBJECT";
     private static final String INFO_MESSAGE = "Sent from AWS Lambda.";
 
     @Override
     public boolean sendNotification(String message, LambdaLogger logger) {
+        final String sender = System.getenv(MAIL_FROM_VAR);
+        final String recipient = System.getenv(MAIL_TO_VAR);
+        sanitizeMail(sender, recipient);
+
         try (SesClient client = SesClient.builder()
-                .region(Region.EU_CENTRAL_1)
+                .region(Utils.getRegion())
                 .credentialsProvider(ProfileCredentialsProvider.create())
                 .build()) {
 
+            final String subject = System.getenv().getOrDefault(MAIL_SUBJECT_VAR, "Raspberry Pi status");
             // The email body for non-HTML email clients.
-            String bodyText = message + "\r\n" + INFO_MESSAGE;
+            final String bodyText = message + "\r\n" + INFO_MESSAGE;
             // The HTML body of the email.
-            String bodyHTML = "<html>" + "<head></head>" + "<body>" + "<h1>" + message + "</h1>"
+            final String bodyHTML = "<html>" + "<head></head>" + "<body>" + "<h1>" + message + "</h1>"
                     + "<p>" + INFO_MESSAGE + "</p>" + "</body>" + "</html>";
 
-            sendMail(client, new Email(FROM, TO, SUBJECT, bodyText, bodyHTML), logger);
+            sendMail(client, new Email(sender, recipient, subject, bodyText, bodyHTML), logger);
             return true;
         } catch (IOException | MessagingException e) {
             logger.log(e.getMessage());
@@ -73,7 +83,7 @@ public class MailNotificationServiceImpl implements NotificationService {
         MimeMessage message = new MimeMessage(session);
 
         // Add subject, from and to lines.
-        message.setSubject(email.getSubject(), "UTF-8");
+        message.setSubject(email.getSubject(), StandardCharsets.UTF_8.name());
         message.setFrom(new InternetAddress(email.getSender()));
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(email.getRecipient()));
 
@@ -85,11 +95,11 @@ public class MailNotificationServiceImpl implements NotificationService {
 
         // Define the text part.
         MimeBodyPart textPart = new MimeBodyPart();
-        textPart.setContent(email.getBodyText(), "text/plain; charset=UTF-8");
+        textPart.setContent(email.getBodyText(), MIMETYPE_TEXT_PLAIN);
 
         // Define the HTML part.
         MimeBodyPart htmlPart = new MimeBodyPart();
-        htmlPart.setContent(email.getBodyHTML(), "text/html; charset=UTF-8");
+        htmlPart.setContent(email.getBodyHTML(), MIMETYPE_HTML);
 
         // Add the text and HTML parts to the child container.
         msgBody.addBodyPart(textPart);

@@ -21,13 +21,13 @@ import java.net.Socket;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
+import static com.aws.ionutzbaur.rpicron.util.CommonConstants.BUCHAREST_ZONE_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class HandlerTest {
 
-    private static final String BUCHAREST_ZONE_ID = "Europe/Bucharest";
     private static final int ANY_NOT_IGNORED_HOUR = 12;
 
     @Mock

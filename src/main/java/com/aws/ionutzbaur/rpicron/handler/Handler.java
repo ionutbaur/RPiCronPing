@@ -15,25 +15,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static com.aws.ionutzbaur.rpicron.util.CommonConstants.*;
+import static com.aws.ionutzbaur.rpicron.util.Sanitizer.*;
+import static com.aws.ionutzbaur.rpicron.util.Utils.convertStringToInt;
+
 /**
  * This is the entry point for the Lambda function
  */
 
 public class Handler {
 
-    private static final String HOST = "ionutbaur11.go.ro";
-    private static final int SSH_PORT = 22;
-
-    private static final String DEVICE_NAME = "Raspberry Pi";
+    private static final String DEVICE_NAME = System.getenv().getOrDefault("DEVICE_NAME", "Raspberry Pi");
     private static final String REACHABLE_MESSAGE = DEVICE_NAME + " is now reachable!";
     private static final String NOT_REACHABLE_MESSAGE = DEVICE_NAME + " not reachable! Most probably a power outage.";
     private static final String NOTIFY_TRY_MESSAGE = "Will try to notify user.";
-    private static final String BUCHAREST_ZONE_ID = "Europe/Bucharest";
 
-    private static final int BEGIN_IGNORED_HOUR = 3;
-    private static final int BEGIN_IGNORED_MINUTE = 0;
-    private static final int END_IGNORED_HOUR = 3;
-    private static final int END_IGNORED_MINUTE = 4;
+    private static final String BEGIN_IGNORED_HOUR_VAR = "BEGIN_IGNORED_HOUR";
+    private static final String BEGIN_IGNORED_MINUTE_VAR = "BEGIN_IGNORED_MINUTE";
+    private static final String END_IGNORED_HOUR_VAR = "END_IGNORED_HOUR";
+    private static final String END_IGNORED_MINUTE_VAR = "END_IGNORED_MINUTE";
 
     private final ScanNotification scanNotification;
     private final NotificationService notificationService;
@@ -59,11 +59,15 @@ public class Handler {
     }
 
     private void ping(LambdaLogger logger) {
-        Notification notification = scanNotification.getNotification(logger);
+        sanitizeRoute();
 
+        final String host = System.getenv(HOST_VAR);
+        final int port = getPort();
+        Notification notification = scanNotification.getNotification(logger);
         String messageToSend = "Status unknown!";   //should not happen
         boolean isUpdateNeeded = false;
-        try (Socket ignored = new Socket(HOST, SSH_PORT)) {
+
+        try (Socket ignored = new Socket(host, port)) {
             boolean isAlive = Boolean.TRUE.equals(notification.getAlive());
             if (isAlive) {
                 logger.log(DEVICE_NAME + " is alive. No action needed.");
@@ -103,15 +107,48 @@ public class Handler {
 
     private boolean isIgnoredInterval() {
         List<Predicate<ZonedDateTime>> predicateList = List.of( // add here other conditions if needed
-                zonedDateTime -> zonedDateTime.getHour() >= BEGIN_IGNORED_HOUR,
-                zonedDateTime -> zonedDateTime.getHour() <= END_IGNORED_HOUR,
-                zonedDateTime -> zonedDateTime.getMinute() >= BEGIN_IGNORED_MINUTE,
-                zonedDateTime -> zonedDateTime.getMinute() <= END_IGNORED_MINUTE);
+                zonedDateTime -> zonedDateTime.getHour() >= getBeginIgnoredHour(),
+                zonedDateTime -> zonedDateTime.getHour() <= getEndIgnoredHour(),
+                zonedDateTime -> zonedDateTime.getMinute() >= getBeginIgnoredMinute(),
+                zonedDateTime -> zonedDateTime.getMinute() <= getEndIgnoredMinute());
 
         return predicateList.stream()
                 .reduce(predicate -> true, Predicate::and)
                 .test(ZonedDateTime.now()
                         .withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)));
+    }
+
+    private static int getBeginIgnoredHour() {
+        final String beginIgnoredHourAsString = System.getenv(BEGIN_IGNORED_HOUR_VAR);
+        final int beginIgnoredHour = convertStringToInt(beginIgnoredHourAsString, BEGIN_IGNORED_HOUR_VAR);
+
+        return getValidHour(beginIgnoredHour);
+    }
+
+    private static int getEndIgnoredHour() {
+        final String endIgnoredHourAsString = System.getenv(END_IGNORED_HOUR_VAR);
+        final int endIgnoredHour = convertStringToInt(endIgnoredHourAsString, END_IGNORED_HOUR_VAR);
+
+        return getValidHour(endIgnoredHour);
+    }
+
+    private static int getBeginIgnoredMinute() {
+        final String beginIgnoredMinuteAsString = System.getenv(BEGIN_IGNORED_MINUTE_VAR);
+        final int beginIgnoredMinute = convertStringToInt(beginIgnoredMinuteAsString, BEGIN_IGNORED_MINUTE_VAR);
+
+        return getValidMinute(beginIgnoredMinute);
+    }
+
+    private static int getEndIgnoredMinute() {
+        final String endIgnoredMinuteAsString = System.getenv(END_IGNORED_MINUTE_VAR);
+        final int endIgnoredMinute = convertStringToInt(endIgnoredMinuteAsString, END_IGNORED_MINUTE_VAR);
+
+        return getValidMinute(endIgnoredMinute);
+    }
+
+    private static int getPort() {
+        final String portAsString = System.getenv(PORT_VAR);
+        return convertStringToInt(portAsString, PORT_VAR);
     }
 
 }

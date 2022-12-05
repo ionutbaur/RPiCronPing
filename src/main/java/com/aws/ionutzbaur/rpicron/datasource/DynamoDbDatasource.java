@@ -1,8 +1,8 @@
 package com.aws.ionutzbaur.rpicron.datasource;
 
+import com.aws.ionutzbaur.rpicron.util.Utils;
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
 public class DynamoDbDatasource {
@@ -11,7 +11,7 @@ public class DynamoDbDatasource {
 
     private DynamoDbDatasource() {
         DynamoDbClient ddb = DynamoDbClient.builder()
-                .region(Region.EU_CENTRAL_1)
+                .region(Utils.getRegion())
                 .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
                 .build();
 
