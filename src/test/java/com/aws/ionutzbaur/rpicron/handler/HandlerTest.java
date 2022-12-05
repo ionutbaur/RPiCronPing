@@ -5,6 +5,7 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.aws.ionutzbaur.rpicron.datasource.ScanNotification;
 import com.aws.ionutzbaur.rpicron.model.Notification;
 import com.aws.ionutzbaur.rpicron.service.NotificationService;
+import com.aws.ionutzbaur.rpicron.util.Sanitizer;
 import com.aws.ionutzbaur.rpicron.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,7 @@ class HandlerTest {
 
     private MockedStatic<Utils> utilsMockedStatic;
     private MockedStatic<ZonedDateTime> zonedDateTimeMockedStatic;
+    private MockedStatic<Sanitizer> sanitizerMockedStatic;
 
     private Handler handler;
 
@@ -84,6 +86,8 @@ class HandlerTest {
         zonedDateTimeMockedStatic.when(ZonedDateTime::now).thenReturn(zonedDateTime);
         when(zonedDateTime.withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID))).thenReturn(zonedDateTime);
 
+        sanitizerMockedStatic = mockStatic(Sanitizer.class);
+
         handler = new Handler(scanNotification, notificationService);
     }
 
@@ -91,10 +95,14 @@ class HandlerTest {
     void tearDown() {
         utilsMockedStatic.close();
         zonedDateTimeMockedStatic.close();
+        sanitizerMockedStatic.close();
     }
 
     @Test
     void handleRequest_isIgnoredInterval() {
+        sanitizerMockedStatic.when(() -> Sanitizer.getValidHour(anyInt())).thenCallRealMethod();
+        sanitizerMockedStatic.when(() -> Sanitizer.getValidMinute(anyInt())).thenCallRealMethod();
+
         when(zonedDateTime.getHour()).thenReturn(BEGIN_IGNORED_HOUR);
         when(zonedDateTime.getMinute()).thenReturn(BEGIN_IGNORED_MINUTE);
 
@@ -116,6 +124,7 @@ class HandlerTest {
         try (MockedConstruction<Socket> ignored = mockConstruction(Socket.class)) {
             handler.handleRequest(context);
 
+            sanitizerMockedStatic.verify(Sanitizer::sanitizeRoute);
             verify(logger).log("Raspberry Pi is alive. No action needed.");
             verifyNoMoreInteractions(logger, scanNotification, notificationService);
         }
@@ -137,6 +146,7 @@ class HandlerTest {
         try (MockedConstruction<Socket> ignored = mockConstruction(Socket.class)) {
             handler.handleRequest(context);
 
+            sanitizerMockedStatic.verify(Sanitizer::sanitizeRoute);
             verify(logger).log("Raspberry Pi back alive! Will try to notify user.");
 
             assertTrue(notification.getAlive());
@@ -167,6 +177,7 @@ class HandlerTest {
                         .thenThrow(IOException.class))) {
             handler.handleRequest(context);
 
+            sanitizerMockedStatic.verify(Sanitizer::sanitizeRoute);
             verify(logger).log(matches("Cannot connect to host due to *."));
             verify(logger).log("Raspberry Pi down. Will try to notify user.");
 
@@ -193,6 +204,7 @@ class HandlerTest {
                         .thenThrow(IOException.class))) {
             handler.handleRequest(context);
 
+            sanitizerMockedStatic.verify(Sanitizer::sanitizeRoute);
             verify(logger).log("Raspberry Pi still down. No further notification needed.");
             verifyNoMoreInteractions(logger, scanNotification, notificationService);
         }
