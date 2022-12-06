@@ -48,7 +48,7 @@ public class Handler {
     public void handleRequest(Context context) {
         LambdaLogger logger = context.getLogger();
 
-        if (isIgnoredInterval()) {
+        if (isIgnoredInterval(logger)) {
             // in this period the router has nightly restarts.
             logger.log("Interval ignored. Will do nothing.");
         } else {
@@ -103,17 +103,22 @@ public class Handler {
         }
     }
 
-    private boolean isIgnoredInterval() {
-        List<Predicate<ZonedDateTime>> predicateList = List.of( // add here other conditions if needed
-                zonedDateTime -> zonedDateTime.getHour() >= getBeginIgnoredHour(),
-                zonedDateTime -> zonedDateTime.getHour() <= getEndIgnoredHour(),
-                zonedDateTime -> zonedDateTime.getMinute() >= getBeginIgnoredMinute(),
-                zonedDateTime -> zonedDateTime.getMinute() <= getEndIgnoredMinute());
+    private boolean isIgnoredInterval(LambdaLogger logger) {
+        try {
+            List<Predicate<ZonedDateTime>> predicateList = List.of( // add here other conditions if needed
+                    zonedDateTime -> zonedDateTime.getHour() >= getBeginIgnoredHour(),
+                    zonedDateTime -> zonedDateTime.getHour() <= getEndIgnoredHour(),
+                    zonedDateTime -> zonedDateTime.getMinute() >= getBeginIgnoredMinute(),
+                    zonedDateTime -> zonedDateTime.getMinute() <= getEndIgnoredMinute());
 
-        return predicateList.stream()
-                .reduce(predicate -> true, Predicate::and)
-                .test(ZonedDateTime.now()
-                        .withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)));
+            return predicateList.stream()
+                    .reduce(predicate -> true, Predicate::and)
+                    .test(ZonedDateTime.now()
+                            .withZoneSameInstant(ZoneId.of(BUCHAREST_ZONE_ID)));
+        } catch (Exception e) {
+            logger.log(e.getMessage());
+            return false;
+        }
     }
 
     private static int getBeginIgnoredHour() {
