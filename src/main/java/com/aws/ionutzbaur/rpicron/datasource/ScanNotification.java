@@ -14,7 +14,7 @@ import java.util.Iterator;
 
 public class ScanNotification {
 
-    private static final int UNIQ_ID = 1;
+    private static final int UNIQUE_ID = 1;
 
     public DynamoDbTable<Notification> getTable() {
         DynamoDbEnhancedClient dynamoDbEnhancedClient = DynamoDbDatasource.getInstance().getDynamoDbEnhancedClient();
@@ -25,7 +25,7 @@ public class ScanNotification {
 
     public Notification getNotification(LambdaLogger logger) {
         AttributeValue idValue = AttributeValue.builder()
-                .n(String.valueOf(UNIQ_ID))
+                .n(String.valueOf(UNIQUE_ID))
                 .build();
         Expression findExpression = Expression.builder()
                 .expression("#id = :idValue")
@@ -45,7 +45,10 @@ public class ScanNotification {
                 return iterator.next();
             } else {
                 logger.log("Table is empty! Inserting brand new items.");
-                return getBrandNewItem();
+                final Notification branNewItem = getBrandNewItem();
+                notificationDynamoDbTable.putItem(branNewItem);
+
+                return branNewItem;
             }
         } catch (ResourceNotFoundException e) {
             logger.log("Table does not exist. Creating it...");
@@ -58,7 +61,7 @@ public class ScanNotification {
 
     private Notification getBrandNewItem() {
         Notification notification = new Notification();
-        notification.setId(UNIQ_ID);
+        notification.setId(UNIQUE_ID);
         notification.setAlive(false);
         notification.setNextNotificationNeeded(false);
         notification.setLastSentOn("never");
